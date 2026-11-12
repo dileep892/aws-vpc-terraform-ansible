@@ -1,0 +1,22 @@
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+tfplan
+crash.log
+terraform.tfvars
+*.auto.tfvars
+# keep the lock file committed: !.terraform.lock.hcl
+
+# Ansible / Python
+*.retry
+__pycache__/
+*.pyc
+.venv/
+.vault_pass
+
+# Secrets
+.env
+*.pem
+credentials

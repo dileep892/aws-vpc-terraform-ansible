@@ -1,0 +1,93 @@
+---
+# Deploy (or update) an AWS VPC with Terraform, driven by Ansible.
+#
+# Usage:
+#   ansible-playbook ansible/deploy_vpc.yml
+#   ansible-playbook ansible/deploy_vpc.yml -e project_name=prod -e vpc_cidr=10.20.0.0/16
+#   ansible-playbook ansible/deploy_vpc.yml -e plan_only=true
+#
+# AWS credentials: use env vars (AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY),
+# an AWS profile, or an IAM role. Never hard-code keys in this repo.
+
+- name: Deploy AWS VPC using Terraform
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    terraform_dir: "{{ playbook_dir }}/../terraform"
+    aws_region: ap-south-1
+    project_name: demo
+    vpc_cidr: 10.0.0.0/16
+    az_count: 2
+    enable_nat_gateway: true
+    eks_cluster_name: ""
+    plan_only: false
+
+  tasks:
+    - name: Check terraform is installed
+      ansible.builtin.command: terraform version
+      register: tf_version
+      changed_when: false
+
+    - name: Show terraform version
+      ansible.builtin.debug:
+        msg: "{{ tf_version.stdout_lines[0] }}"
+
+    - name: Terraform plan only
+      community.general.terraform:
+        project_path: "{{ terraform_dir }}"
+        state: planned
+        force_init: true
+        plan_file: "{{ terraform_dir }}/tfplan"
+        variables:
+          aws_region: "{{ aws_region }}"
+          project_name: "{{ project_name }}"
+          vpc_cidr: "{{ vpc_cidr }}"
+          az_count: "{{ az_count }}"
+          enable_nat_gateway: "{{ enable_nat_gateway | bool | lower }}"
+          eks_cluster_name: "{{ eks_cluster_name }}"
+      register: tf_plan
+      when: plan_only | bool
+
+    - name: Show plan
+      ansible.builtin.debug:
+        var: tf_plan.stdout_lines
+      when: plan_only | bool
+
+    - name: Terraform apply
+      community.general.terraform:
+        project_path: "{{ terraform_dir }}"
+        state: present
+        force_init: true
+        variables:
+          aws_region: "{{ aws_region }}"
+          project_name: "{{ project_name }}"
+          vpc_cidr: "{{ vpc_cidr }}"
+          az_count: "{{ az_count }}"
+          enable_nat_gateway: "{{ enable_nat_gateway | bool | lower }}"
+          eks_cluster_name: "{{ eks_cluster_name }}"
+      register: tf
+      when: not (plan_only | bool)
+
+    - name: Show outputs
+      ansible.builtin.debug:
+        msg:
+          vpc_id: "{{ tf.outputs.vpc_id.value }}"
+          public_subnets: "{{ tf.outputs.public_subnet_ids.value }}"
+          private_subnets: "{{ tf.outputs.private_subnet_ids.value }}"
+      when: not (plan_only | bool)
+
+    - name: Verify VPC with Python (boto3)
+      ansible.builtin.command: >
+        python3 {{ playbook_dir }}/../scripts/vpc_info.py
+        --vpc-id {{ tf.outputs.vpc_id.value }}
+        --region {{ aws_region }}
+      register: verify
+      changed_when: false
+      when: not (plan_only | bool)
+
+    - name: Show verification report
+      ansible.builtin.debug:
+        var: verify.stdout_lines
+      when: not (plan_only | bool)

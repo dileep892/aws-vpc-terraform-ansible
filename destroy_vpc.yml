@@ -1,0 +1,29 @@
+---
+# Destroy the VPC created by deploy_vpc.yml.
+# Usage: ansible-playbook ansible/destroy_vpc.yml -e confirm_destroy=yes
+
+- name: Destroy AWS VPC using Terraform
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    terraform_dir: "{{ playbook_dir }}/../terraform"
+    aws_region: ap-south-1
+    project_name: demo
+    confirm_destroy: "no"
+
+  tasks:
+    - name: Require explicit confirmation
+      ansible.builtin.assert:
+        that: confirm_destroy == "yes"
+        fail_msg: "Refusing to destroy. Re-run with -e confirm_destroy=yes"
+
+    - name: Terraform destroy
+      community.general.terraform:
+        project_path: "{{ terraform_dir }}"
+        state: absent
+        force_init: true
+        variables:
+          aws_region: "{{ aws_region }}"
+          project_name: "{{ project_name }}"

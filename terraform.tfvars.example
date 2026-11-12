@@ -1,0 +1,8 @@
+# Copy to terraform.tfvars for manual terraform runs.
+# When using Ansible, these values are passed from the playbook instead.
+aws_region         = "ap-south-1"
+project_name       = "demo"
+vpc_cidr           = "10.0.0.0/16"
+az_count           = 2
+enable_nat_gateway = true
+eks_cluster_name   = ""
